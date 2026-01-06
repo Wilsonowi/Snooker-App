@@ -11,7 +11,7 @@ class QRScannerPage extends StatefulWidget {
 
 class _QRScannerPageState extends State<QRScannerPage> {
   // To prevent multiple scans happening in 1 second
-  bool _isScanning = true; 
+  bool _isScanning = true;
 
   @override
   Widget build(BuildContext context) {
@@ -22,12 +22,12 @@ class _QRScannerPageState extends State<QRScannerPage> {
           if (!_isScanning) return; // Stop if we already found one
 
           final List<Barcode> barcodes = capture.barcodes;
-          
+
           for (final barcode in barcodes) {
             if (barcode.rawValue != null) {
               final String code = barcode.rawValue!;
               debugPrint('QR Code found! $code');
-              
+
               _handleScanResult(code);
               break; // Only handle the first code found
             }
@@ -46,7 +46,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
       // 1. Try to parse the JSON data
       // Expecting: {"sid":"SHOP_01","tid":"TABLE_05"}
       Map<String, dynamic> data = jsonDecode(rawData);
-      
+
       String tableId = data['tid'];
       String shopId = data['sid'];
 
@@ -63,16 +63,15 @@ class _QRScannerPageState extends State<QRScannerPage> {
                 setState(() => _isScanning = true); // Resume scanning
               },
               child: const Text("OK"),
-            )
+            ),
           ],
         ),
       );
-
     } catch (e) {
       // If the QR code is garbage or not ours
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Invalid QR Code Format")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Invalid QR Code Format")));
       setState(() => _isScanning = true);
     }
   }

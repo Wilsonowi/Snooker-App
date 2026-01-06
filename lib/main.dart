@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart'; // REQUIRED FOR SCANNER
+import 'dart:convert'; // REQUIRED FOR READING JSON DATA
 
 void main() {
   runApp(const SnookerApp());
@@ -88,7 +90,6 @@ class _AuthSwitcherState extends State<AuthSwitcher> {
 // ---------------------------------------------------------
 // HELPER WIDGET FOR THE PHOTO LOGO
 // ---------------------------------------------------------
-// I created a reusable widget for the photo so we don't copy-paste code
 class SnookerLogoPhoto extends StatelessWidget {
   const SnookerLogoPhoto({super.key});
 
@@ -107,9 +108,8 @@ class SnookerLogoPhoto extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(25.0),
-        // CHANGED: Use Image.asset instead of Image.network
         child: Image.asset(
-          'assets/images/snookerlogo.png', // Ensure this matches your path exactly
+          'assets/images/snookerlogo.png',
           height: 130,
           width: 130,
           fit: BoxFit.cover,
@@ -135,7 +135,6 @@ class WelcomeBackPage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
-              // REPLACED ICON WITH PHOTO WIDGET HERE
               const SnookerLogoPhoto(),
               const SizedBox(height: 32),
               const Text(
@@ -168,7 +167,7 @@ class WelcomeBackPage extends StatelessWidget {
                 label: const Text("ENTER SHOP"),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 20),
-                  minimumSize: const Size.fromHeight(50), // Full width button
+                  minimumSize: const Size.fromHeight(50),
                 ),
               ),
               const SizedBox(height: 20),
@@ -216,7 +215,6 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // REPLACED ICON WITH PHOTO WIDGET HERE
                 const Center(child: SnookerLogoPhoto()),
                 const SizedBox(height: 24),
                 Text(
@@ -400,7 +398,7 @@ class HomeTab extends StatelessWidget {
                   children: const [
                     Text("Good Evening,", style: TextStyle(color: Colors.grey)),
                     Text(
-                      "Jason",
+                      "JunLiTan",
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -462,7 +460,13 @@ class HomeTab extends StatelessWidget {
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: () {
-                      // Open Scanner Logic
+                      // --- NAVIGATE TO SCANNER PAGE HERE ---
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const QRScannerPage(),
+                        ),
+                      );
                     },
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.black,
@@ -720,11 +724,11 @@ class ProfileTab extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             const Text(
-              "Jason",
+              "JunLiTan",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const Text(
-              "jason@example.com",
+              "junli@example.com",
               style: TextStyle(color: Colors.grey),
             ),
 
@@ -805,5 +809,98 @@ class _ProfileMenuItem extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
     );
+  }
+}
+
+// ---------------------------------------------------------
+// 5. QR SCANNER PAGE (New Addition)
+// ---------------------------------------------------------
+class QRScannerPage extends StatefulWidget {
+  const QRScannerPage({super.key});
+
+  @override
+  State<QRScannerPage> createState() => _QRScannerPageState();
+}
+
+class _QRScannerPageState extends State<QRScannerPage> {
+  // To prevent multiple scans happening in 1 second
+  bool _isScanning = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Scan Table QR")),
+      body: MobileScanner(
+        onDetect: (capture) {
+          if (!_isScanning) return; // Stop if we already found one
+
+          final List<Barcode> barcodes = capture.barcodes;
+
+          for (final barcode in barcodes) {
+            if (barcode.rawValue != null) {
+              final String code = barcode.rawValue!;
+              debugPrint('QR Code found! $code');
+
+              _handleScanResult(code);
+              break; // Only handle the first code found
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  void _handleScanResult(String rawData) {
+    setState(() {
+      _isScanning = false; // Stop scanning temporarily
+    });
+
+    try {
+      // 1. Try to parse the JSON data
+      // Expecting: {"sid":"SHOP_01","tid":"TABLE_05"}
+      Map<String, dynamic> data = jsonDecode(rawData);
+
+      String tableId = data['tid'];
+      String shopId = data['sid'];
+
+      // 2. Show Success Dialog (Later this will open Booking Page)
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E), // Match dark theme
+          title: const Text(
+            "Table Found!",
+            style: TextStyle(color: Color(0xFF00E676)),
+          ),
+          content: Text(
+            "Shop: $shopId\nTable: $tableId",
+            style: const TextStyle(color: Colors.white),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx); // Close dialog
+                setState(() => _isScanning = true); // Resume scanning
+              },
+              child: const Text("OK", style: TextStyle(color: Colors.grey)),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx); // Close dialog
+                // TODO: Navigate to Booking Form
+                print("Go to booking for $tableId");
+              },
+              child: const Text("BOOK NOW"),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      // If the QR code is garbage or not ours
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Invalid QR Code Format")));
+      setState(() => _isScanning = true);
+    }
   }
 }
