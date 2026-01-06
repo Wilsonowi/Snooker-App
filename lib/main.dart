@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart'; // REQUIRED FOR SCANNER
 import 'dart:convert'; // REQUIRED FOR READING JSON DATA
+import 'package:supabase_flutter/supabase_flutter.dart'; // REQUIRED FOR SUPABASE
 
-void main() {
+void main() async {
+  // 1. Ensure widgets are ready before async calls
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Initialize connection
+  await Supabase.initialize(
+    url: 'https://jehnonxixyoqcfbzkuvn.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImplaG5vbnhpeHlvcWNmYnprdXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc2NDU3MzcsImV4cCI6MjA4MzIyMTczN30.LoAnSDSfE97-PjnzsTmb5LMFGpxoZfnywTzpeqhz008',
+  );
+
   runApp(const SnookerApp());
 }
 
@@ -75,7 +86,7 @@ class AuthSwitcher extends StatefulWidget {
 
 class _AuthSwitcherState extends State<AuthSwitcher> {
   // REMEMBER: Toggle this to 'false' to see the Login page with the new photo
-  final bool _hasLoginBefore = true;
+  final bool _hasLoginBefore = false;
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +187,7 @@ class WelcomeBackPage extends StatelessWidget {
                   print("Logout pressed");
                 },
                 child: const Text(
-                  "Not Jason? Logout",
+                  "Not JunLi? Logout",
                   style: TextStyle(color: Colors.grey),
                 ),
               ),
@@ -200,9 +211,86 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _isLoginMode = true;
+  bool _isLoading = false;
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+
+  // 1. FUNCTION TO HANDLE SIGN UP
+  Future<void> _handleSignUp() async {
+    setState(() => _isLoading = true);
+    try {
+      // Create user in Supabase
+      final response = await Supabase.instance.client.auth.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        data: {
+          'full_name': _nameController.text.trim(),
+        }, // Store name in metadata
+      );
+
+      if (response.user != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Account Created! Logging you in...")),
+          );
+          // Go to Dashboard
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainDashboard()),
+          );
+        }
+      }
+    } on AuthException catch (e) {
+      // Handle Supabase specific errors (e.g. Email already exists)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Error occurred. Please try again."),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // 2. FUNCTION TO HANDLE LOGIN
+  Future<void> _handleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      if (response.user != null) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainDashboard()),
+          );
+        }
+      }
+    } on AuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Login failed. Check your internet."),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -257,18 +345,30 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 24),
 
+                // BUTTON WITH LOADING STATE
                 FilledButton(
-                  onPressed: () {
-                    if (_isLoginMode) {
-                      print("Logging in...");
-                    } else {
-                      print("Signing up...");
-                    }
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          if (_isLoginMode) {
+                            _handleLogin();
+                          } else {
+                            _handleSignUp();
+                          }
+                        },
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text(_isLoginMode ? 'LOGIN' : 'SIGN UP'),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.black,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(_isLoginMode ? 'LOGIN' : 'SIGN UP'),
                 ),
 
                 const SizedBox(height: 16),
@@ -902,5 +1002,389 @@ class _QRScannerPageState extends State<QRScannerPage> {
       ).showSnackBar(const SnackBar(content: Text("Invalid QR Code Format")));
       setState(() => _isScanning = true);
     }
+  }
+}
+
+// PASTE THIS AT THE VERY END OF YOUR FILE (Outside of QRScannerPage)
+
+class BookingPage extends StatefulWidget {
+  final String tableId;
+  final String shopId;
+
+  const BookingPage({super.key, required this.tableId, required this.shopId});
+
+  @override
+  State<BookingPage> createState() => _BookingPageState();
+}
+
+class _BookingPageState extends State<BookingPage> {
+  // MOCK DATA
+  final int pricePerHour = 25;
+
+  // STATE VARIABLES
+  final DateTime _selectedDate = DateTime.now();
+  int _selectedHour = -1;
+  int _durationHours = 2;
+
+  final List<int> _bookedSlots = [14, 15, 19];
+  final List<int> _operatingHours = List.generate(15, (index) => 10 + index);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Book ${widget.tableId}"),
+        backgroundColor: Colors.black,
+      ),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // DATE PICKER
+                    const Text(
+                      "Select Date",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Icon(
+                            Icons.calendar_month,
+                            color: Color(0xFF00E676),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // TIME SLOT GRID
+                    const Text(
+                      "Select Start Time",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            childAspectRatio: 1.5,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                      itemCount: _operatingHours.length,
+                      itemBuilder: (context, index) {
+                        int hour = _operatingHours[index];
+                        bool isBooked = _bookedSlots.contains(hour);
+                        bool isSelected = _selectedHour == hour;
+
+                        return GestureDetector(
+                          onTap: isBooked
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _selectedHour = hour;
+                                  });
+                                },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isBooked
+                                  ? const Color(0xFF333333)
+                                  : isSelected
+                                  ? const Color(0xFF00E676)
+                                  : const Color(0xFF1E1E1E),
+                              borderRadius: BorderRadius.circular(8),
+                              border: isSelected
+                                  ? Border.all(color: Colors.white, width: 2)
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                "$hour:00",
+                                style: TextStyle(
+                                  color: isBooked
+                                      ? Colors.grey
+                                      : (isSelected
+                                            ? Colors.black
+                                            : Colors.white),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 30),
+
+                    // DURATION SLIDER
+                    const Text(
+                      "Duration (Hours)",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        IconButton.filled(
+                          onPressed: () => setState(() {
+                            if (_durationHours > 1) _durationHours--;
+                          }),
+                          icon: const Icon(Icons.remove),
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E1E1E),
+                          ),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              "$_durationHours Hrs",
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton.filled(
+                          onPressed: () => setState(() {
+                            if (_durationHours < 5) _durationHours++;
+                          }),
+                          icon: const Icon(Icons.add),
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E1E1E),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // BOTTOM CHECKOUT BAR
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Total Price",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      Text(
+                        "\$${pricePerHour * _durationHours}.00",
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF00E676),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _selectedHour == -1
+                        ? null
+                        : () {
+                            // 1. Calculate values to pass to the next page
+                            int totalAmount = pricePerHour * _durationHours;
+                            String dateStr =
+                                "${_selectedDate.day}/${_selectedDate.month}";
+                            String timeStr =
+                                "$_selectedHour:00 - ${_selectedHour + _durationHours}:00";
+
+                            // 2. Navigate to Success Page
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PaymentSuccessPage(
+                                  tableId: widget.tableId,
+                                  date: dateStr,
+                                  time: timeStr,
+                                  amount: totalAmount,
+                                ),
+                              ),
+                            );
+                          },
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(55),
+                      backgroundColor: const Color(0xFF00E676),
+                      foregroundColor: Colors.black,
+                      disabledBackgroundColor: Colors.grey[800],
+                    ),
+                    child: const Text(
+                      "CONFIRM BOOKING",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 7. PAYMENT SUCCESS & RECEIPT PAGE
+// ---------------------------------------------------------
+class PaymentSuccessPage extends StatelessWidget {
+  final String tableId;
+  final String date;
+  final String time;
+  final int amount;
+
+  const PaymentSuccessPage({
+    super.key,
+    required this.tableId,
+    required this.date,
+    required this.time,
+    required this.amount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Spacer(),
+              // 1. Success Icon
+              const Icon(
+                Icons.check_circle,
+                color: Color(0xFF00E676),
+                size: 100,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                "Payment Successful!",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Your table is reserved.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 40),
+
+              // 2. The Receipt Card
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    _receiptRow("Table", tableId),
+                    const Divider(color: Colors.grey, height: 32),
+                    _receiptRow("Date", date),
+                    const SizedBox(height: 12),
+                    _receiptRow("Time", time),
+                    const SizedBox(height: 12),
+                    _receiptRow("Total Paid", "\$$amount.00", isBold: true),
+                  ],
+                ),
+              ),
+
+              const Spacer(),
+
+              // 3. Back Home Button
+              FilledButton(
+                onPressed: () {
+                  // Go back to the very first screen (Dashboard) and remove everything else
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const MainDashboard(),
+                    ),
+                    (Route<dynamic> route) => false,
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(55),
+                  backgroundColor: const Color(0xFF00E676),
+                  foregroundColor: Colors.black,
+                ),
+                child: const Text("BACK TO HOME"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper widget for rows
+  Widget _receiptRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey)),
+        Text(
+          value,
+          style: TextStyle(
+            color: isBold ? const Color(0xFF00E676) : Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: isBold ? 18 : 16,
+          ),
+        ),
+      ],
+    );
   }
 }
