@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart'; // REQUIRED FOR SCANNER
+import 'package:snooker_app/tabledashboard.dart';
 import 'dart:convert'; // REQUIRED FOR READING JSON DATA
 import 'package:supabase_flutter/supabase_flutter.dart'; // REQUIRED FOR SUPABASE
 
@@ -69,7 +70,7 @@ class SnookerApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AuthSwitcher(),
+      home: const TableDashboard(),
     );
   }
 }
@@ -187,7 +188,7 @@ class WelcomeBackPage extends StatelessWidget {
                   print("Logout pressed");
                 },
                 child: const Text(
-                  "Not JunLi? Logout",
+                  "Logout Account",
                   style: TextStyle(color: Colors.grey),
                 ),
               ),
@@ -306,7 +307,7 @@ class _LoginPageState extends State<LoginPage> {
                 const Center(child: SnookerLogoPhoto()),
                 const SizedBox(height: 24),
                 Text(
-                  _isLoginMode ? 'Snooker Club' : 'Join the Club',
+                  _isLoginMode ? 'Snooker Hub' : 'Join the Club',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 28,
