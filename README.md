@@ -1,4 +1,4 @@
-## 🎱 Snooker Club Booking App - Melaka
+# 🎱 Snooker Club Booking App - Melaka
 
 A complete digital booking and table management system designed for a real snooker store located in Melaka, Malaysia. 
 
